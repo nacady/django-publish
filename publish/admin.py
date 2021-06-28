@@ -1,9 +1,10 @@
 from django.contrib import admin
 from django.forms.models import BaseInlineFormSet
-from django.utils.encoding import force_unicode
+from django.utils.encoding import force_text
 from django.http import Http404, HttpResponseRedirect
 from django.core.exceptions import ValidationError
-from django.core.urlresolvers import reverse as reverse_url
+from django.urls import reverse as reverse_url
+
 
 from .models import Publishable
 from .actions import publish_selected, unpublish_selected, delete_selected, undelete_selected
@@ -30,9 +31,9 @@ def _make_adminform_readonly(adminform, inline_admin_formsets):
 
 def _draft_queryset(db_field, kwargs):
     # see if we need to filter the field's queryset
-    model = db_field.rel.to
+    model = db_field.remote_field.model
     if issubclass(model, Publishable):
-        kwargs['queryset'] = model._default_manager.draft().complex_filter(db_field.rel.limit_choices_to)
+        kwargs['queryset'] = model._default_manager.draft().complex_filter(db_field.remote_field.limit_choices_to)
 
 
 def attach_filtered_formfields(admin_class):
@@ -53,7 +54,24 @@ def attach_filtered_formfields(admin_class):
     admin_class.formfield_for_manytomany = formfield_for_manytomany
     return admin_class
 
+class PublishedListFilter(admin.SimpleListFilter):
+    title = 'Published'
+    parameter_name = 'published'
 
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Yes'),
+            ('no',  'No'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(public__isnull=False)
+
+        if self.value() == 'no':
+            return queryset.filter(public__isnull=True)
+
+delete_selected.__name__='delete_selected2'
 class PublishableAdmin(admin.ModelAdmin):
 
     actions = [publish_selected, unpublish_selected, delete_selected, undelete_selected]
@@ -62,10 +80,10 @@ class PublishableAdmin(admin.ModelAdmin):
     unpublish_confirmation_template = None
     deleted_form_template = None
 
-    list_display = ['__unicode__', 'publish_state']
-    list_filter = ['publish_state']
+    list_display = ['__str__', 'get_publish_status_display']
+    list_filter = ['publish_state', PublishedListFilter] #'public__is_public']
 
-    def queryset(self, request):
+    def get_queryset(self, request):
         # we want to show draft and deleted
         # objects in changelist in admin
         # so we can let the user select and publish them
@@ -98,13 +116,15 @@ class PublishableAdmin(admin.ModelAdmin):
 
     def has_publish_permission(self, request, obj=None):
         opts = self.opts
-        return request.user.has_perm(opts.app_label + '.' + opts.get_publish_permission())
+        return request.user.has_perm(opts.app_label + '.publish_%s' % opts.object_name.lower())
 
     def get_publish_status_display(self, obj):
         state = obj.get_publish_state_display()
         if not obj.is_public and not obj.public:
             state = '%s - not yet published' % state
         return state
+    get_publish_status_display.short_description = 'Status'
+    get_publish_status_display.admin_order_field = 'publish_state'
 
     def log_publication(self, request, object, message="Published"):
         # only log objects that we should
@@ -148,7 +168,7 @@ class PublishableAdmin(admin.ModelAdmin):
             _make_adminform_readonly(adminform, inline_admin_formsets)
 
             context.update({
-                'title': 'This %s will be deleted' % force_unicode(self.opts.verbose_name),
+                'title': 'This %s will be deleted' % force_text(self.opts.verbose_name),
             })
 
         return super(PublishableAdmin, self).render_change_form(request, context, add, change, form_url, obj)

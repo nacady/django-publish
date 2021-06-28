@@ -6,7 +6,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import router, transaction
 from django.shortcuts import render_to_response
 from django.template.response import TemplateResponse
-from django.utils.encoding import force_unicode
+from django.utils.encoding import force_text
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.text import capfirst
@@ -42,7 +42,7 @@ undelete_selected.short_description = "Un-mark %(verbose_name_plural)s for delet
 def _get_publishable_html(admin_site, levels_to_root, value):
     model = value.__class__
     model_name = escape(capfirst(model._meta.verbose_name))
-    model_title = escape(force_unicode(value))
+    model_title = escape(force_text(value))
     model_text = '%s: %s' % (model_name, model_title)
     opts = model._meta
 
@@ -95,7 +95,7 @@ def _root_path(admin_site):
 
 @transaction.atomic
 def publish_selected(modeladmin, request, queryset):
-    queryset = queryset.select_for_update()
+    #queryset = queryset.select_for_update()
     opts = modeladmin.model._meta
     app_label = opts.app_label
 
@@ -127,7 +127,7 @@ def publish_selected(modeladmin, request, queryset):
 
     context = {
         "title": _("Publish?"),
-        "object_name": force_unicode(opts.verbose_name),
+        "object_name": force_text(opts.verbose_name),
         "all_published": _convert_all_published_to_html(admin_site, all_published),
         "perms_lacking": _to_html(admin_site, perms_needed),
         'queryset': queryset,
@@ -138,7 +138,7 @@ def publish_selected(modeladmin, request, queryset):
     }
 
     # Display the confirmation page
-    return render_to_response(modeladmin.publish_confirmation_template or [
+    return TemplateResponse(request, modeladmin.publish_confirmation_template or [
         "admin/%s/%s/publish_selected_confirmation.html" % (app_label, opts.object_name.lower()),
         "admin/%s/publish_selected_confirmation.html" % app_label,
         "admin/publish_selected_confirmation.html"
@@ -148,7 +148,7 @@ def publish_selected(modeladmin, request, queryset):
 @transaction.atomic
 def unpublish_selected(modeladmin, request, queryset):
     queryset = queryset.select_for_update()
-
+    queryset.query.clear_ordering(True)
     opts = modeladmin.model._meta
     app_label = opts.app_label
 
@@ -166,7 +166,7 @@ def unpublish_selected(modeladmin, request, queryset):
     # Populate unpublishable_objects, a data structure of all related objects that
     # will also be deleted.
     unpublishable_objects, model_count, _perms_needed, protected = get_deleted_objects(
-        all_unpublished, opts, request.user, modeladmin.admin_site, using)
+        all_unpublished, request, modeladmin.admin_site)
 
     if request.POST.get('post'):
         if perms_needed:
@@ -185,9 +185,9 @@ def unpublish_selected(modeladmin, request, queryset):
             return None
 
     if len(all_unpublished) == 1:
-        objects_name = force_unicode(opts.verbose_name)
+        objects_name = force_text(opts.verbose_name)
     else:
-        objects_name = force_unicode(opts.verbose_name_plural)
+        objects_name = force_text(opts.verbose_name_plural)
 
     if perms_needed or protected:
         title = _("Cannot unpublish %(name)s") % {"name": objects_name}

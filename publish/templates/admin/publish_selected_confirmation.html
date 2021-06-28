@@ -22,9 +22,10 @@
     <p>{% blocktrans %}Are you sure you want to publish the selected {{ object_name }} objects? All of the following objects and their related items will be published:{% endblocktrans %}</p>
         <ul>{{ all_published|unordered_list }}</ul>
 
-    <form action="" method="post">
-    {% csrf_token %}
+    <form method="post">
+    {% csrf_token %}{{ csrf_input }}
     <div>
+    {% csrf_token %}{{ csrf_input }}
     {% for obj in queryset %}
     <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}" />
     {% endfor %}

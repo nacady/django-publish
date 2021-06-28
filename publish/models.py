@@ -123,7 +123,7 @@ class Publishable(models.Model):
 
     is_public = models.BooleanField(default=False, editable=False, db_index=True)
     publish_state = models.IntegerField('Publication status', editable=False, db_index=True, choices=PUBLISH_CHOICES,
-                                        default=PUBLISH_DEFAULT)
+                                        default=PUBLISH_CHANGED)
     public = models.OneToOneField('self', related_name='draft', null=True,
                                   editable=False, on_delete=models.SET_NULL)
 
@@ -257,10 +257,10 @@ class Publishable(models.Model):
         In 1.1 through is a string and through_model has class
         In 1.2 through is the class
         '''
-        through = field_object.rel.through
+        through = field_object.remote_field.through
         if through:
             if isinstance(through, stringtype):
-                return field_object.rel.through_model
+                return field_object.remote_field.through_model
             return through
         return None
 
@@ -313,7 +313,7 @@ class Publishable(models.Model):
 
                 value = getattr(self, field.name)
                 if isinstance(field, RelatedField):
-                    related = field.rel.to
+                    related = field.remote_field.model
                     if issubclass(related, Publishable):
                         if value is not None:
                             value = value._get_public_or_publish(dry_run=dry_run, all_published=all_published,
@@ -352,12 +352,12 @@ class Publishable(models.Model):
                         if reverse_field.column == m2m_reverse_name:
                             related_name = reverse_field.name
                             related_field = getattr(through_model, related_name).field
-                            reverse_name = related_field.rel.get_accessor_name()
+                            reverse_name = related_field.remote_field.get_accessor_name()
                             reverse_fields_to_publish.append(reverse_name)
                             break
                     continue  # m2m via through table won't be dealt with here
 
-            related = field_object.rel.to
+            related = field_object.remote_field.model
             if issubclass(related, Publishable):
                 public_objs = [p._get_public_or_publish(dry_run=dry_run, all_published=all_published, parent=self) for p
                                in public_objs]
@@ -365,7 +365,7 @@ class Publishable(models.Model):
             if not dry_run:
                 public_m2m_manager = getattr(public_version, name)
 
-                old_objs = public_m2m_manager.exclude(pk__in=[p.pk for p in public_objs])
+                old_objs = public_m2m_manager.all()
                 public_m2m_manager.remove(*old_objs)
                 public_m2m_manager.add(*public_objs)
 
@@ -378,7 +378,7 @@ class Publishable(models.Model):
                     continue
                 if name not in reverse_fields_to_publish:
                     continue
-                if obj.field.rel.multiple:
+                if obj.field.remote_field.multiple:
                     related_items = getattr(self, name).all()
                 else:
                     try:
@@ -391,7 +391,7 @@ class Publishable(models.Model):
 
                 # make sure we tidy up anything that needs deleting
                 if self.public and not dry_run:
-                    if obj.field.rel.multiple:
+                    if obj.field.remote_field.multiple:
                         public_ids = [r.public_id for r in related_items]
                         deleted_items = getattr(self.public, name).exclude(pk__in=public_ids)
                         deleted_items.delete(mark_for_deletion=False)

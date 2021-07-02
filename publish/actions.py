@@ -147,8 +147,8 @@ def publish_selected(modeladmin, request, queryset):
 
 @transaction.atomic
 def unpublish_selected(modeladmin, request, queryset):
+    queryset = modeladmin.model.objects.filter(id__in=[o.id for o in queryset])
     queryset = queryset.select_for_update()
-    queryset.query.clear_ordering(True)
     opts = modeladmin.model._meta
     app_label = opts.app_label
 

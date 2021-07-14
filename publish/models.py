@@ -265,7 +265,7 @@ class Publishable(models.Model):
         return None
 
     def _changes_need_publishing(self):
-        return self.publish_state == Publishable.PUBLISH_CHANGED or not self.public
+        return True
 
     def _get_all_related_objects(self):
         # The following mimics the deprecated Options.get_all_related_objects

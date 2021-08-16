@@ -94,21 +94,35 @@ class PublishableManager(models.Manager):
 
 class PublishableBase(ModelBase):
     def __new__(cls, name, bases, attrs):
+        from django.contrib.auth.models import Permission
+        from django.contrib.contenttypes.models import ContentType
+
         new_class = super(PublishableBase, cls).__new__(cls, name, bases, attrs)
+        if new_class._meta.abstract:
+            return new_class
+
         # insert an extra permission in for "Can publish"
         # as well as a "method" to find name of publish_permission for this object
         opts = new_class._meta
         name = u'Can publish %s' % opts.verbose_name
         code = u'publish_%s' % opts.object_name.lower()
-        opts.permissions = tuple(opts.permissions) + ((code, name),)
-        opts.get_publish_permission = lambda: code
+        try:
+            content_type = ContentType.objects.get_for_model(new_class)
+        except:
+            return new_class
 
+        try:
+            permission = Permission.objects.create(
+                codename=code,
+                name=name,
+                content_type=content_type,
+            )
+        except:
+          pass
         return new_class
 
 
-class Publishable(models.Model):
-    __metaclass__ = PublishableBase
-
+class Publishable(models.Model, metaclass=PublishableBase):
     PUBLISH_DEFAULT = 0
     PUBLISH_CHANGED = 1
     PUBLISH_DELETE = 2

@@ -112,7 +112,7 @@ class PublishableBase(ModelBase):
             return new_class
 
         try:
-            permission = Permission.objects.create(
+            permission = Permission.objects.get_or_create(
                 codename=code,
                 name=name,
                 content_type=content_type,

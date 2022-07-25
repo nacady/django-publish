@@ -4,7 +4,6 @@ from django.contrib.admin.actions import delete_selected as django_delete_select
 from django.contrib.admin.utils import quote, model_ngettext, get_deleted_objects
 from django.core.exceptions import PermissionDenied
 from django.db import router, transaction
-from django.shortcuts import render_to_response
 from django.template.response import TemplateResponse
 from django.utils.encoding import force_text
 from django.utils.html import escape
